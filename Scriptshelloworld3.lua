@@ -1,8 +1,8 @@
 --[[
     ╔══════════════════════════════════════════╗
     ║       H4LL0 W0RLD HUB V3               ║
-    ║        Rivals & Universal  •  v3.0      ║
-    ║     FIXED: Switch Target Semua Player   ║
+    ║        Rivals & Universal  •  v4.0      ║
+    ║     NEW: Auto Shoot + Speed Slider      ║
     ║          KEY: Hello_world123            ║
     ╚══════════════════════════════════════════╝
 ]]
@@ -35,121 +35,79 @@ local C = {
 }
 
 local Toggles = {
-    Aimbot     = false,
-    StrongLock = false,
-    WallCheck  = false,
-    NoClip     = false,
-    ESP        = false,
-    SpeedHack  = false,
-    Fly        = false,
-    Auto1v1    = false,
+    Aimbot      = false,
+    StrongLock  = false,
+    WallCheck   = false,
+    NoClip      = false,
+    ESP         = false,
+    SpeedHack   = false,
+    Fly         = false,
+    Auto1v1     = false,
+    AutoShoot   = false,
 }
 
 local Settings = {
-    WalkSpeed = 16,
-    FlySpeed  = 40,
-    FOV       = 150,
-    AimSpeed  = 8,
-    AimPart   = "Head",
+    WalkSpeed    = 16,
+    FlySpeed     = 40,
+    FOV          = 150,
+    AimSpeed     = 8,
+    AimPart      = "Head",
+    ShootSpeed   = 10, -- shoot per detik
+    ShootDelay   = 0.1, -- 1/ShootSpeed
 }
 
--- ═══════════════════════
---   TARGET SYSTEM FIXED
--- ═══════════════════════
 local CurrentTarget = nil
 local TargetIndex   = 1
+local Connections   = {}
+local Minimized     = false
+local VALID_KEY     = "Hello_world123"
 
--- Ambil list player fresh tiap kali dipanggil
 local function GetPlayerList()
     local list = {}
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer then
-            table.insert(list, plr)
-        end
+        if plr ~= LocalPlayer then table.insert(list, plr) end
     end
     return list
 end
 
--- Switch ke player berikutnya
-local function SwitchNext(updateUI)
+local function SwitchNext()
     local list = GetPlayerList()
-    if #list == 0 then
-        CurrentTarget = nil
-        TargetIndex = 1
-        if updateUI then updateUI() end
-        return
-    end
-    -- Cari index current target di list terbaru
+    if #list == 0 then CurrentTarget=nil; TargetIndex=1; return end
     if CurrentTarget then
-        for i, plr in ipairs(list) do
-            if plr == CurrentTarget then
-                TargetIndex = i; break
-            end
+        for i,plr in ipairs(list) do
+            if plr==CurrentTarget then TargetIndex=i; break end
         end
     end
-    TargetIndex = TargetIndex + 1
-    if TargetIndex > #list then TargetIndex = 1 end
+    TargetIndex = TargetIndex+1
+    if TargetIndex > #list then TargetIndex=1 end
     CurrentTarget = list[TargetIndex]
-    if updateUI then updateUI() end
 end
-
--- Set target langsung dari index
-local function SetTarget(plr, idx, updateUI)
-    CurrentTarget = plr
-    TargetIndex   = idx
-    if updateUI then updateUI() end
-end
-
-local Connections = {}
-local Minimized   = false
-local VALID_KEY   = "Hello_world123"
 
 local function New(class, props, parent)
     local obj = Instance.new(class)
-    for k, v in pairs(props or {}) do
-        pcall(function() obj[k] = v end)
-    end
-    if parent then obj.Parent = parent end
+    for k,v in pairs(props or {}) do pcall(function() obj[k]=v end) end
+    if parent then obj.Parent=parent end
     return obj
 end
-
-local function Corner(p, r)
-    return New("UICorner", {CornerRadius = UDim.new(0, r or 8)}, p)
+local function Corner(p,r) return New("UICorner",{CornerRadius=UDim.new(0,r or 8)},p) end
+local function Stroke(p,col,th) return New("UIStroke",{Color=col or C.Border,Thickness=th or 1},p) end
+local function Tween(obj,props,t)
+    pcall(function() TweenService:Create(obj,TweenInfo.new(t or 0.25,Enum.EasingStyle.Quart),props):Play() end)
 end
-
-local function Stroke(p, col, th)
-    return New("UIStroke", {Color = col or C.Border, Thickness = th or 1}, p)
-end
-
-local function Tween(obj, props, t)
-    pcall(function()
-        TweenService:Create(obj, TweenInfo.new(t or 0.25, Enum.EasingStyle.Quart), props):Play()
-    end)
-end
-
 local function GetChar()
-    local char = LocalPlayer.Character
-    if not char then return nil, nil, nil end
+    local char=LocalPlayer.Character
+    if not char then return nil,nil,nil end
     return char, char:FindFirstChild("HumanoidRootPart"), char:FindFirstChildOfClass("Humanoid")
 end
-
 local function StopAll()
-    for k, c in pairs(Connections) do
-        pcall(function() c:Disconnect() end)
-        Connections[k] = nil
-    end
+    for k,c in pairs(Connections) do pcall(function() c:Disconnect() end); Connections[k]=nil end
 end
-
 local function ClearESP()
-    for _, plr in ipairs(Players:GetPlayers()) do
+    for _,plr in ipairs(Players:GetPlayers()) do
         if plr.Character then
-            local root = plr.Character:FindFirstChild("HumanoidRootPart")
-            if root then
-                local bb = root:FindFirstChild("ESP_BB")
-                if bb then pcall(function() bb:Destroy() end) end
-            end
-            local hl = plr.Character:FindFirstChild("ESP_HL")
-            if hl then pcall(function() hl:Destroy() end) end
+            local root=plr.Character:FindFirstChild("HumanoidRootPart")
+            if root then local bb=root:FindFirstChild("ESP_BB"); if bb then pcall(function() bb:Destroy() end) end end
+            local hl=plr.Character:FindFirstChild("ESP_HL"); if hl then pcall(function() hl:Destroy() end) end
         end
     end
 end
@@ -159,19 +117,16 @@ local function GetAimTarget()
         return CurrentTarget.Character:FindFirstChild(Settings.AimPart)
                or CurrentTarget.Character:FindFirstChild("Head")
     end
-    local closest, dist = nil, math.huge
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer and plr.Character then
-            local part = plr.Character:FindFirstChild(Settings.AimPart)
-                         or plr.Character:FindFirstChild("Head")
+    local closest,dist=nil,math.huge
+    for _,plr in ipairs(Players:GetPlayers()) do
+        if plr~=LocalPlayer and plr.Character then
+            local part=plr.Character:FindFirstChild(Settings.AimPart) or plr.Character:FindFirstChild("Head")
             if part then
-                local sp, onScreen = Camera:WorldToViewportPoint(part.Position)
+                local sp,onScreen=Camera:WorldToViewportPoint(part.Position)
                 if onScreen then
-                    local center = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-                    local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-                    if d < Settings.FOV and d < dist then
-                        dist = d; closest = part
-                    end
+                    local center=Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y/2)
+                    local d=(Vector2.new(sp.X,sp.Y)-center).Magnitude
+                    if d<Settings.FOV and d<dist then dist=d; closest=part end
                 end
             end
         end
@@ -179,48 +134,102 @@ local function GetAimTarget()
     return closest
 end
 
-local function ApplyFeature(key, val)
-    local char, hrp, hum = GetChar()
-
-    if key == "Aimbot" then
-        if val then
-            Connections.Aimbot = RunService.RenderStepped:Connect(function()
-                local t = GetAimTarget()
-                if t then
-                    pcall(function()
-                        Camera.CFrame = Camera.CFrame:Lerp(
-                            CFrame.lookAt(Camera.CFrame.Position, t.Position),
-                            math.clamp(Settings.AimSpeed/100, 0.02, 0.25))
-                    end)
+-- ═══════════════════════════
+--   AUTO SHOOT SYSTEM
+-- ═══════════════════════════
+local function DoShoot()
+    -- Try semua cara shoot yang mungkin di Rivals/Universal
+    pcall(function()
+        -- Method 1: FireServer ke tool remote
+        local char = LocalPlayer.Character
+        if char then
+            local tool = char:FindFirstChildOfClass("Tool")
+            if tool then
+                -- Cari remote shoot
+                for _, v in ipairs(tool:GetDescendants()) do
+                    if v:IsA("RemoteEvent") and (
+                        v.Name:lower():find("shoot") or
+                        v.Name:lower():find("fire") or
+                        v.Name:lower():find("attack") or
+                        v.Name:lower():find("hit")
+                    ) then
+                        v:FireServer()
+                    end
                 end
+                -- Cari dari game RemoteEvents
+                for _, v in ipairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
+                    if v:IsA("RemoteEvent") and (
+                        v.Name:lower():find("shoot") or
+                        v.Name:lower():find("fire") or
+                        v.Name:lower():find("attack")
+                    ) then
+                        -- Fire ke target
+                        local target = GetAimTarget()
+                        if target then
+                            v:FireServer(target.Position)
+                        else
+                            v:FireServer()
+                        end
+                    end
+                end
+            end
+        end
+
+        -- Method 2: Simulate mouse click di target
+        local target = GetAimTarget()
+        if target then
+            local vp = game:GetService("VirtualInputManager")
+            if vp then
+                vp:SendMouseButtonEvent(
+                    Camera.ViewportSize.X/2,
+                    Camera.ViewportSize.Y/2,
+                    0, true, game, 0
+                )
+                task.wait(0.05)
+                vp:SendMouseButtonEvent(
+                    Camera.ViewportSize.X/2,
+                    Camera.ViewportSize.Y/2,
+                    0, false, game, 0
+                )
+            end
+        end
+    end)
+end
+
+local function ApplyFeature(key, val)
+    local char,hrp,hum = GetChar()
+
+    if key=="Aimbot" then
+        if val then
+            Connections.Aimbot=RunService.RenderStepped:Connect(function()
+                local t=GetAimTarget()
+                if t then pcall(function()
+                    Camera.CFrame=Camera.CFrame:Lerp(CFrame.lookAt(Camera.CFrame.Position,t.Position),math.clamp(Settings.AimSpeed/100,0.02,0.25))
+                end) end
             end)
         else
             if Connections.Aimbot then pcall(function() Connections.Aimbot:Disconnect() end); Connections.Aimbot=nil end
         end
 
-    elseif key == "StrongLock" then
+    elseif key=="StrongLock" then
         if val then
-            Connections.StrongLock = RunService.RenderStepped:Connect(function()
-                local t = GetAimTarget()
-                if t then
-                    pcall(function()
-                        Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, t.Position)
-                    end)
-                end
+            Connections.StrongLock=RunService.RenderStepped:Connect(function()
+                local t=GetAimTarget()
+                if t then pcall(function() Camera.CFrame=CFrame.lookAt(Camera.CFrame.Position,t.Position) end) end
             end)
         else
             if Connections.StrongLock then pcall(function() Connections.StrongLock:Disconnect() end); Connections.StrongLock=nil end
         end
 
-    elseif key == "WallCheck" then
+    elseif key=="WallCheck" then
         if val then
-            Connections.WallCheck = RunService.Heartbeat:Connect(function()
-                for _, plr in ipairs(Players:GetPlayers()) do
-                    if plr ~= LocalPlayer and plr.Character then
-                        local root = plr.Character:FindFirstChild("HumanoidRootPart")
+            Connections.WallCheck=RunService.Heartbeat:Connect(function()
+                for _,plr in ipairs(Players:GetPlayers()) do
+                    if plr~=LocalPlayer and plr.Character then
+                        local root=plr.Character:FindFirstChild("HumanoidRootPart")
                         if root and hrp then
-                            local ray = workspace:Raycast(hrp.Position,(root.Position-hrp.Position).Unit*500,RaycastParams.new())
-                            local bb = root:FindFirstChild("WC_BB")
+                            local ray=workspace:Raycast(hrp.Position,(root.Position-hrp.Position).Unit*500,RaycastParams.new())
+                            local bb=root:FindFirstChild("WC_BB")
                             if ray and ray.Instance and not ray.Instance:IsDescendantOf(plr.Character) then
                                 if not bb then
                                     local b=New("BillboardGui",{Name="WC_BB",Size=UDim2.new(0,90,0,20),StudsOffset=Vector3.new(0,5,0),AlwaysOnTop=true},root)
@@ -235,60 +244,56 @@ local function ApplyFeature(key, val)
             end)
         else
             if Connections.WallCheck then pcall(function() Connections.WallCheck:Disconnect() end); Connections.WallCheck=nil end
-            for _, plr in ipairs(Players:GetPlayers()) do
+            for _,plr in ipairs(Players:GetPlayers()) do
                 if plr.Character then
-                    local root = plr.Character:FindFirstChild("HumanoidRootPart")
+                    local root=plr.Character:FindFirstChild("HumanoidRootPart")
                     if root then local bb=root:FindFirstChild("WC_BB"); if bb then pcall(function() bb:Destroy() end) end end
                 end
             end
         end
 
-    elseif key == "NoClip" then
+    elseif key=="NoClip" then
         if val then
-            Connections.NoClip = RunService.Stepped:Connect(function()
-                local c = LocalPlayer.Character
-                if c then for _, p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then pcall(function() p.CanCollide=false end) end end end
+            Connections.NoClip=RunService.Stepped:Connect(function()
+                local c=LocalPlayer.Character
+                if c then for _,p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then pcall(function() p.CanCollide=false end) end end end
             end)
         else
             if Connections.NoClip then pcall(function() Connections.NoClip:Disconnect() end); Connections.NoClip=nil end
         end
 
-    elseif key == "ESP" then
+    elseif key=="ESP" then
         if val then
-            Connections.ESP = RunService.Heartbeat:Connect(function()
-                for _, plr in ipairs(Players:GetPlayers()) do
-                    if plr ~= LocalPlayer and plr.Character then
-                        local root = plr.Character:FindFirstChild("HumanoidRootPart")
+            Connections.ESP=RunService.Heartbeat:Connect(function()
+                local _,hrp2,_=GetChar()
+                for _,plr in ipairs(Players:GetPlayers()) do
+                    if plr~=LocalPlayer and plr.Character then
+                        local root=plr.Character:FindFirstChild("HumanoidRootPart")
                         if root then
-                            local isTarget = CurrentTarget == plr
-                            local bb = root:FindFirstChild("ESP_BB")
-                            local hl = plr.Character:FindFirstChild("ESP_HL")
-                            -- Update warna kalau target berubah
+                            local isTarget=CurrentTarget==plr
+                            local bb=root:FindFirstChild("ESP_BB")
+                            local hl=plr.Character:FindFirstChild("ESP_HL")
                             if bb then
-                                local lbl = bb:FindFirstChildOfClass("TextLabel")
+                                local lbl=bb:FindFirstChildOfClass("TextLabel")
                                 if lbl then
-                                    lbl.Text = (isTarget and "🎯 " or "💀 ")..plr.Name..(isTarget and " [1v1]" or "")
-                                    lbl.TextColor3 = isTarget and C.Purple or C.AccentGlow
+                                    lbl.Text=(isTarget and "🎯 " or "💀 ")..plr.Name..(isTarget and " [1v1]" or "")
+                                    lbl.TextColor3=isTarget and C.Purple or C.AccentGlow
                                 end
                             else
                                 pcall(function()
                                     local b=New("BillboardGui",{Name="ESP_BB",Size=UDim2.new(0,130,0,26),StudsOffset=Vector3.new(0,4,0),AlwaysOnTop=true},root)
-                                    New("TextLabel",{Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,
-                                        Text=(isTarget and "🎯 " or "💀 ")..plr.Name..(isTarget and " [1v1]" or ""),
-                                        TextColor3=isTarget and C.Purple or C.AccentGlow,TextSize=11,Font=Enum.Font.GothamBold},b)
+                                    New("TextLabel",{Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,Text=(isTarget and "🎯 " or "💀 ")..plr.Name,TextColor3=isTarget and C.Purple or C.AccentGlow,TextSize=11,Font=Enum.Font.GothamBold},b)
                                 end)
                             end
                             if hl then
-                                hl.FillColor  = isTarget and Color3.fromRGB(168,85,247)  or Color3.fromRGB(180,20,20)
-                                hl.OutlineColor= isTarget and Color3.fromRGB(200,150,255) or Color3.fromRGB(255,50,50)
+                                hl.FillColor=isTarget and Color3.fromRGB(168,85,247) or Color3.fromRGB(180,20,20)
+                                hl.OutlineColor=isTarget and Color3.fromRGB(200,150,255) or Color3.fromRGB(255,50,50)
                             else
                                 pcall(function()
-                                    local h=Instance.new("Highlight")
-                                    h.Name="ESP_HL"
-                                    h.FillColor  = isTarget and Color3.fromRGB(168,85,247)  or Color3.fromRGB(180,20,20)
-                                    h.OutlineColor= isTarget and Color3.fromRGB(200,150,255) or Color3.fromRGB(255,50,50)
-                                    h.FillTransparency=0.45
-                                    h.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop
+                                    local h=Instance.new("Highlight"); h.Name="ESP_HL"
+                                    h.FillColor=isTarget and Color3.fromRGB(168,85,247) or Color3.fromRGB(180,20,20)
+                                    h.OutlineColor=isTarget and Color3.fromRGB(200,150,255) or Color3.fromRGB(255,50,50)
+                                    h.FillTransparency=0.45; h.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop
                                     h.Adornee=plr.Character; h.Parent=plr.Character
                                 end)
                             end
@@ -301,17 +306,16 @@ local function ApplyFeature(key, val)
             ClearESP()
         end
 
-    elseif key == "SpeedHack" then
-        if hum then hum.WalkSpeed = val and Settings.WalkSpeed or 16 end
+    elseif key=="SpeedHack" then
+        if hum then hum.WalkSpeed=val and Settings.WalkSpeed or 16 end
 
-    elseif key == "Fly" then
+    elseif key=="Fly" then
         if val then
             pcall(function()
                 if not hrp then return end
                 local bg=Instance.new("BodyGyro"); bg.MaxTorque=Vector3.new(1e9,1e9,1e9); bg.P=1e4; bg.Parent=hrp
                 local bv=Instance.new("BodyVelocity"); bv.Velocity=Vector3.zero; bv.MaxForce=Vector3.new(1e9,1e9,1e9); bv.Parent=hrp
                 Connections.Fly=RunService.Heartbeat:Connect(function()
-                    if Toggles.Aimbot or Toggles.StrongLock then bv.Velocity=Vector3.zero; return end
                     local cam=workspace.CurrentCamera
                     if UserInputService:IsKeyDown(Enum.KeyCode.W) then bv.Velocity=cam.CFrame.LookVector*Settings.FlySpeed
                     elseif UserInputService:IsKeyDown(Enum.KeyCode.S) then bv.Velocity=-cam.CFrame.LookVector*Settings.FlySpeed
@@ -324,18 +328,39 @@ local function ApplyFeature(key, val)
             if Connections.Fly then pcall(function() Connections.Fly:Disconnect() end); Connections.Fly=nil end
             if hrp then for _,obj in ipairs(hrp:GetChildren()) do if obj:IsA("BodyGyro") or obj:IsA("BodyVelocity") then pcall(function() obj:Destroy() end) end end end
         end
+
+    elseif key=="Auto1v1" then
+        if val then
+            Connections.Auto1v1UI=RunService.Heartbeat:Connect(function() end)
+        else
+            if Connections.Auto1v1UI then pcall(function() Connections.Auto1v1UI:Disconnect() end); Connections.Auto1v1UI=nil end
+        end
+
+    elseif key=="AutoShoot" then
+        if val then
+            -- Auto shoot loop berdasarkan ShootSpeed
+            task.spawn(function()
+                while Toggles.AutoShoot do
+                    local target=GetAimTarget()
+                    if target then
+                        -- Ada target di FOV → shoot!
+                        DoShoot()
+                    end
+                    task.wait(Settings.ShootDelay)
+                end
+            end)
+        else
+            -- Toggle false → loop berhenti otomatis
+        end
     end
 end
 
 -- ═══════════════════════════
 --        KEY SCREEN
 -- ═══════════════════════════
-local GUI = New("ScreenGui", {
-    Name="H4ll0V3", ResetOnSpawn=false,
-    DisplayOrder=999, ZIndexBehavior=Enum.ZIndexBehavior.Sibling,
-}, game.CoreGui)
+local GUI=New("ScreenGui",{Name="H4ll0V3",ResetOnSpawn=false,DisplayOrder=999,ZIndexBehavior=Enum.ZIndexBehavior.Sibling},game.CoreGui)
 
-local KeyScreen = New("Frame", {Size=UDim2.new(1,0,1,0), BackgroundColor3=C.BG_Main, BorderSizePixel=0}, GUI)
+local KeyScreen=New("Frame",{Size=UDim2.new(1,0,1,0),BackgroundColor3=C.BG_Main,BorderSizePixel=0},GUI)
 
 for i=1,12 do
     local d=New("Frame",{Size=UDim2.new(0,math.random(3,9),0,math.random(20,90)),Position=UDim2.new(math.random(),0,0,0),BackgroundColor3=C.Blood,BackgroundTransparency=0.35,BorderSizePixel=0},KeyScreen)
@@ -343,6 +368,13 @@ for i=1,12 do
 end
 
 local flickLbl=New("TextLabel",{Size=UDim2.new(0,90,0,90),Position=UDim2.new(0.5,-45,0.1,0),BackgroundTransparency=1,Text="💀",TextSize=68,Font=Enum.Font.GothamBold},KeyScreen)
+task.spawn(function()
+    while flickLbl and flickLbl.Parent do
+        task.wait(math.random(2,5))
+        for _=1,2 do flickLbl.TextTransparency=0.7; task.wait(0.08); flickLbl.TextTransparency=0; task.wait(0.08) end
+    end
+end)
+
 New("TextLabel",{Size=UDim2.new(0,440,0,44),Position=UDim2.new(0.5,-220,0.3,0),BackgroundTransparency=1,Text="H4LL0 W0RLD HUB V3",TextColor3=C.Accent,TextSize=24,Font=Enum.Font.GothamBold},KeyScreen)
 
 local v3b=New("Frame",{Size=UDim2.new(0,70,0,22),Position=UDim2.new(0.5,80,0.3,8),BackgroundColor3=Color3.fromRGB(20,5,30),BorderSizePixel=0},KeyScreen)
@@ -355,20 +387,10 @@ local KBG=New("Frame",{Size=UDim2.new(0,340,0,32),Position=UDim2.new(0.5,-170,0.
 Corner(KBG,8); Stroke(KBG,C.Border,1.5)
 local KInput=New("TextBox",{Size=UDim2.new(1,-14,1,0),Position=UDim2.new(0,10,0,0),BackgroundTransparency=1,PlaceholderText="💀  Enter key...",PlaceholderColor3=C.TextDim,Text="",TextColor3=C.TextMain,TextXAlignment=Enum.TextXAlignment.Left,TextSize=13,Font=Enum.Font.GothamBold,ClearTextOnFocus=false},KBG)
 
-local DiscordBtn=New("TextButton",{Size=UDim2.new(0,130,0,28),Position=UDim2.new(0.5,-170,0.62,0),BackgroundColor3=C.AccentDim,Text="💬 Get Key (Discord)",TextColor3=C.TextMain,TextSize=11,Font=Enum.Font.GothamBold,BorderSizePixel=0},KeyScreen)
-Corner(DiscordBtn,7); Stroke(DiscordBtn,C.Border,1)
-local PasteBtn=New("TextButton",{Size=UDim2.new(0,72,0,28),Position=UDim2.new(0.5,-32,0.62,0),BackgroundColor3=C.BG_Card,Text="📋 Paste",TextColor3=C.TextMain,TextSize=11,Font=Enum.Font.GothamBold,BorderSizePixel=0},KeyScreen)
-Corner(PasteBtn,7); Stroke(PasteBtn,C.Border,1)
-local EnterBtn=New("TextButton",{Size=UDim2.new(0,72,0,28),Position=UDim2.new(0.5,48,0.62,0),BackgroundColor3=C.Accent,Text="▶ Enter",TextColor3=Color3.fromRGB(255,200,200),TextSize=11,Font=Enum.Font.GothamBold,BorderSizePixel=0},KeyScreen)
-Corner(EnterBtn,7)
+local DiscordBtn=New("TextButton",{Size=UDim2.new(0,130,0,28),Position=UDim2.new(0.5,-170,0.62,0),BackgroundColor3=C.AccentDim,Text="💬 Get Key (Discord)",TextColor3=C.TextMain,TextSize=11,Font=Enum.Font.GothamBold,BorderSizePixel=0},KeyScreen); Corner(DiscordBtn,7); Stroke(DiscordBtn,C.Border,1)
+local PasteBtn=New("TextButton",{Size=UDim2.new(0,72,0,28),Position=UDim2.new(0.5,-32,0.62,0),BackgroundColor3=C.BG_Card,Text="📋 Paste",TextColor3=C.TextMain,TextSize=11,Font=Enum.Font.GothamBold,BorderSizePixel=0},KeyScreen); Corner(PasteBtn,7); Stroke(PasteBtn,C.Border,1)
+local EnterBtn=New("TextButton",{Size=UDim2.new(0,72,0,28),Position=UDim2.new(0.5,48,0.62,0),BackgroundColor3=C.Accent,Text="▶ Enter",TextColor3=Color3.fromRGB(255,200,200),TextSize=11,Font=Enum.Font.GothamBold,BorderSizePixel=0},KeyScreen); Corner(EnterBtn,7)
 local KStatus=New("TextLabel",{Size=UDim2.new(0,340,0,22),Position=UDim2.new(0.5,-170,0.7,0),BackgroundTransparency=1,Text="Enter key to proceed...",TextColor3=C.TextDim,TextSize=11,Font=Enum.Font.Gotham},KeyScreen)
-
-task.spawn(function()
-    while flickLbl and flickLbl.Parent do
-        task.wait(math.random(2,5))
-        for _=1,2 do flickLbl.TextTransparency=0.7; task.wait(0.08); flickLbl.TextTransparency=0; task.wait(0.08) end
-    end
-end)
 
 DiscordBtn.MouseButton1Click:Connect(function()
     pcall(function() setclipboard("https://discord.gg/xCV9Tf4y5N") end)
@@ -376,7 +398,7 @@ DiscordBtn.MouseButton1Click:Connect(function()
     task.wait(2); DiscordBtn.Text="💬 Get Key (Discord)"; DiscordBtn.BackgroundColor3=C.AccentDim
 end)
 PasteBtn.MouseButton1Click:Connect(function()
-    local ok,cb=pcall(getclipboard); if ok and cb and cb~="" then KInput.Text=cb end
+    local ok,cb=pcall(getclipboard); if ok and cb~="" then KInput.Text=cb end
 end)
 
 -- ═══════════════════════════
@@ -385,7 +407,7 @@ end)
 local function BuildMain()
     KeyScreen:Destroy()
 
-    local Win=New("Frame",{Size=UDim2.new(0,600,0,450),Position=UDim2.new(0.5,-300,0.5,-225),BackgroundColor3=C.BG_Main,BorderSizePixel=0,Active=true},GUI)
+    local Win=New("Frame",{Size=UDim2.new(0,600,0,470),Position=UDim2.new(0.5,-300,0.5,-235),BackgroundColor3=C.BG_Main,BorderSizePixel=0,Active=true},GUI)
     Corner(Win,12); Stroke(Win,C.Blood,1.5)
 
     local drag,dStart,dPos=false,nil,nil
@@ -393,18 +415,20 @@ local function BuildMain()
     UserInputService.InputChanged:Connect(function(i) if drag and i.UserInputType==Enum.UserInputType.MouseMovement then local d=i.Position-dStart; Win.Position=UDim2.new(dPos.X.Scale,dPos.X.Offset+d.X,dPos.Y.Scale,dPos.Y.Offset+d.Y) end end)
     UserInputService.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=false end end)
 
-    local Top=New("Frame",{Size=UDim2.new(1,0,0,40),BackgroundColor3=C.BG_Side,BorderSizePixel=0,ZIndex=5},Win)
-    Corner(Top,12)
+    local Top=New("Frame",{Size=UDim2.new(1,0,0,40),BackgroundColor3=C.BG_Side,BorderSizePixel=0,ZIndex=5},Win); Corner(Top,12)
     New("Frame",{Size=UDim2.new(1,0,0.5,0),Position=UDim2.new(0,0,0.5,0),BackgroundColor3=C.BG_Side,BorderSizePixel=0,ZIndex=4},Top)
     New("TextLabel",{Size=UDim2.new(0,30,1,0),Position=UDim2.new(0,8,0,0),BackgroundTransparency=1,Text="💀",TextSize=20,ZIndex=6},Top)
     New("TextLabel",{Size=UDim2.new(0,240,1,0),Position=UDim2.new(0,40,0,0),BackgroundTransparency=1,Text="H4ll0 W0rld Hub V3",TextColor3=C.Accent,TextXAlignment=Enum.TextXAlignment.Left,TextSize=13,Font=Enum.Font.GothamBold,ZIndex=6},Top)
-    local tb=New("Frame",{Size=UDim2.new(0,50,0,20),Position=UDim2.new(0,284,0.5,-10),BackgroundColor3=Color3.fromRGB(20,5,30),BorderSizePixel=0,ZIndex=6},Top)
-    Corner(tb,5); Stroke(tb,C.Purple,1)
+    local tb=New("Frame",{Size=UDim2.new(0,50,0,20),Position=UDim2.new(0,284,0.5,-10),BackgroundColor3=Color3.fromRGB(20,5,30),BorderSizePixel=0,ZIndex=6},Top); Corner(tb,5); Stroke(tb,C.Purple,1)
     New("TextLabel",{Size=UDim2.new(1,0,1,0),BackgroundTransparency=1,Text="⚡ V3",TextColor3=C.Purple,TextSize=10,Font=Enum.Font.GothamBold,ZIndex=7},tb)
     local MinBtn=New("TextButton",{Size=UDim2.new(0,26,0,20),Position=UDim2.new(1,-60,0.5,-10),BackgroundColor3=C.BG_Card,Text="─",TextColor3=C.TextMain,TextSize=13,Font=Enum.Font.GothamBold,BorderSizePixel=0,ZIndex=6},Top); Corner(MinBtn,5)
     local CloseBtn=New("TextButton",{Size=UDim2.new(0,26,0,20),Position=UDim2.new(1,-28,0.5,-10),BackgroundColor3=C.Blood,Text="✕",TextColor3=Color3.fromRGB(255,200,200),TextSize=12,Font=Enum.Font.GothamBold,BorderSizePixel=0,ZIndex=6},Top); Corner(CloseBtn,5)
     CloseBtn.MouseButton1Click:Connect(function() StopAll(); ClearESP(); Tween(Win,{Size=UDim2.new(0,600,0,0)},0.3); task.wait(0.35); GUI:Destroy() end)
-    MinBtn.MouseButton1Click:Connect(function() Minimized=not Minimized; if Minimized then Tween(Win,{Size=UDim2.new(0,600,0,40)},0.3); MinBtn.Text="□" else Tween(Win,{Size=UDim2.new(0,600,0,450)},0.3); MinBtn.Text="─" end end)
+    MinBtn.MouseButton1Click:Connect(function()
+        Minimized=not Minimized
+        if Minimized then Tween(Win,{Size=UDim2.new(0,600,0,40)},0.3); MinBtn.Text="□"
+        else Tween(Win,{Size=UDim2.new(0,600,0,470)},0.3); MinBtn.Text="─" end
+    end)
 
     local CH=New("Frame",{Size=UDim2.new(1,0,1,-40),Position=UDim2.new(0,0,0,40),BackgroundTransparency=1,ClipsDescendants=true},Win)
     local Side=New("Frame",{Size=UDim2.new(0,130,1,0),BackgroundColor3=C.BG_Side,BorderSizePixel=0},CH); Stroke(Side,C.Border,1)
@@ -447,10 +471,10 @@ local function BuildMain()
         local tb2=New("TextButton",{Size=UDim2.new(0,46,0,22),Position=UDim2.new(1,-54,0.5,-11),BackgroundColor3=C.OFF,Text="",BorderSizePixel=0},card); Corner(tb2,11)
         local circ=New("Frame",{Size=UDim2.new(0,16,0,16),Position=UDim2.new(0,3,0.5,-8),BackgroundColor3=Color3.fromRGB(255,220,220),BorderSizePixel=0},tb2); Corner(circ,8)
         tb2.MouseButton1Click:Connect(function()
-            Toggles[key]=not Toggles[key]
-            Tween(tb2,{BackgroundColor3=Toggles[key] and onCol or C.OFF},0.2)
-            Tween(circ,{Position=Toggles[key] and UDim2.new(0,27,0.5,-8) or UDim2.new(0,3,0.5,-8)},0.2)
-            pcall(function() ApplyFeature(key,Toggles[key]) end)
+            Toggles[key]=not Toggles[key]; local on=Toggles[key]
+            Tween(tb2,{BackgroundColor3=on and onCol or C.OFF},0.2)
+            Tween(circ,{Position=on and UDim2.new(0,27,0.5,-8) or UDim2.new(0,3,0.5,-8)},0.2)
+            pcall(function() ApplyFeature(key,on) end)
         end)
     end
     local function Btn(parent,label,col,fn)
@@ -487,6 +511,8 @@ local function BuildMain()
     Section(CP,"AIMBOT")
     Toggle(CP,"Aimbot","Aimbot","Camera-only aim, body tidak gerak")
     Toggle(CP,"Strong Lock","StrongLock","Lock kamera ke 1 target terus")
+
+    -- Aim Part
     local aimCard=New("Frame",{Size=UDim2.new(1,0,0,52),BackgroundColor3=C.BG_Card,BorderSizePixel=0},CP); Corner(aimCard,8); Stroke(aimCard,C.Border,1)
     New("TextLabel",{Size=UDim2.new(1,0,0,20),Position=UDim2.new(0,10,0,4),BackgroundTransparency=1,Text="🎯 Aim Part",TextColor3=C.TextMain,TextXAlignment=Enum.TextXAlignment.Left,TextSize=12,Font=Enum.Font.GothamBold},aimCard)
     local aimSt=New("TextLabel",{Size=UDim2.new(1,0,0,14),Position=UDim2.new(0,10,0,26),BackgroundTransparency=1,Text="Target: HEAD 💀",TextColor3=C.Gold,TextXAlignment=Enum.TextXAlignment.Left,TextSize=10,Font=Enum.Font.GothamBold},aimCard)
@@ -494,8 +520,39 @@ local function BuildMain()
     local bBtn=New("TextButton",{Size=UDim2.new(0,60,0,22),Position=UDim2.new(1,-64,0.5,-11),BackgroundColor3=C.BG_Card,Text="Body",TextColor3=C.TextSub,TextSize=10,Font=Enum.Font.GothamBold,BorderSizePixel=0},aimCard); Corner(bBtn,5); Stroke(bBtn,C.Border,1)
     hBtn.MouseButton1Click:Connect(function() Settings.AimPart="Head"; aimSt.Text="Target: HEAD 💀"; hBtn.BackgroundColor3=C.Accent; hBtn.TextColor3=Color3.fromRGB(255,200,200); bBtn.BackgroundColor3=C.BG_Card; bBtn.TextColor3=C.TextSub end)
     bBtn.MouseButton1Click:Connect(function() Settings.AimPart="UpperTorso"; aimSt.Text="Target: BODY 🏃"; bBtn.BackgroundColor3=C.Accent; bBtn.TextColor3=Color3.fromRGB(255,200,200); hBtn.BackgroundColor3=C.BG_Card; hBtn.TextColor3=C.TextSub end)
+
     Slider(CP,"🎯 FOV Radius",50,500,150,function(v) Settings.FOV=v end," px")
     Slider(CP,"⚡ Aim Speed",1,30,8,function(v) Settings.AimSpeed=v end,"")
+
+    -- ══════════════════════════
+    --   🔫 AUTO SHOOT SECTION
+    -- ══════════════════════════
+    Section(CP,"AUTO SHOOT",C.Gold)
+    Toggle(CP,"Auto Shoot","AutoShoot","Auto tembak saat aimbot ke player",C.Gold)
+
+    -- Shoot Speed Slider
+    local shootCard=New("Frame",{Size=UDim2.new(1,0,0,62),BackgroundColor3=C.BG_Card,BorderSizePixel=0},CP)
+    Corner(shootCard,8); Stroke(shootCard,C.Gold,1)
+    New("TextLabel",{Size=UDim2.new(1,0,0,20),Position=UDim2.new(0,10,0,5),BackgroundTransparency=1,Text="🔫 Shoot Speed",TextColor3=C.TextMain,TextXAlignment=Enum.TextXAlignment.Left,TextSize=12,Font=Enum.Font.GothamBold},shootCard)
+    local shootVal=New("TextLabel",{Size=UDim2.new(0,80,0,20),Position=UDim2.new(1,-85,0,5),BackgroundTransparency=1,Text="10 /detik",TextColor3=C.Gold,TextXAlignment=Enum.TextXAlignment.Right,TextSize=11,Font=Enum.Font.GothamBold},shootCard)
+    local shootBG=New("Frame",{Size=UDim2.new(1,-20,0,8),Position=UDim2.new(0,10,0,36),BackgroundColor3=C.BG_Main,BorderSizePixel=0},shootCard); Corner(shootBG,4)
+    local shootFill=New("Frame",{Size=UDim2.new(0.45,0,1,0),BackgroundColor3=C.Gold,BorderSizePixel=0},shootBG); Corner(shootFill,4)
+    local shootThumb=New("Frame",{Size=UDim2.new(0,16,0,16),Position=UDim2.new(0.45,-8,0.5,-8),BackgroundColor3=Color3.fromRGB(255,220,100),BorderSizePixel=0},shootBG); Corner(shootThumb,8)
+    local shootSliding=false
+    shootBG.InputBegan:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then shootSliding=true end end)
+    UserInputService.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then shootSliding=false end end)
+    UserInputService.InputChanged:Connect(function(i)
+        if shootSliding and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then
+            local rel=math.clamp((i.Position.X-shootBG.AbsolutePosition.X)/shootBG.AbsoluteSize.X,0,1)
+            local v=math.floor(1+(30-1)*rel) -- 1-30 shoot per detik
+            Settings.ShootSpeed=v
+            Settings.ShootDelay=1/v
+            shootVal.Text=v.." /detik"
+            shootFill.Size=UDim2.new(rel,0,1,0)
+            shootThumb.Position=UDim2.new(rel,-8,0.5,-8)
+        end
+    end)
+
     Section(CP,"UTILITY")
     Toggle(CP,"WallCheck","WallCheck","Cek musuh di balik tembok",C.Gold)
     Toggle(CP,"NoClip","NoClip","Jalan menembus tembok")
@@ -514,129 +571,54 @@ local function BuildMain()
     local targetDistLbl=New("TextLabel",{Size=UDim2.new(0.5,-8,0,18),Position=UDim2.new(0,8,0,30),BackgroundTransparency=1,Text="📏 - studs",TextColor3=C.Gold,TextXAlignment=Enum.TextXAlignment.Left,TextSize=11,Font=Enum.Font.Gotham},tCard)
     local targetIdxLbl=New("TextLabel",{Size=UDim2.new(0.5,-8,0,18),Position=UDim2.new(0.5,0,0,30),BackgroundTransparency=1,Text="[0/0]",TextColor3=C.TextDim,TextXAlignment=Enum.TextXAlignment.Right,TextSize=11,Font=Enum.Font.GothamBold},tCard)
 
-    -- ═══════════════════════════
-    --   PLAYER LIST + SWITCH FIX
-    -- ═══════════════════════════
-    Section(OP,"PLAYER LIST — SWITCH TARGET",C.Purple)
-
-    local plrListCard=New("Frame",{Size=UDim2.new(1,0,0,96),BackgroundColor3=C.BG_Card,BorderSizePixel=0},OP)
-    Corner(plrListCard,8); Stroke(plrListCard,C.Border,1)
-
-    local plrList=New("ScrollingFrame",{
-        Size=UDim2.new(1,-20,0,56),Position=UDim2.new(0,10,0,8),
-        BackgroundColor3=C.BG_Main,BorderSizePixel=0,
-        ScrollBarThickness=3,ScrollBarImageColor3=C.Purple,
-        CanvasSize=UDim2.new(0,0,0,0),
-    },plrListCard)
-    Corner(plrList,5)
-    local plrLL=New("UIListLayout",{FillDirection=Enum.FillDirection.Horizontal,Padding=UDim.new(0,5)},plrList)
-    New("UIPadding",{PaddingLeft=UDim.new(0,4)},plrList)
-
-    -- Update fungsi UI target
     local function UpdateTargetUI()
-        if not targetNameLbl then return end
-        local list = GetPlayerList()
+        local list=GetPlayerList()
         if CurrentTarget and CurrentTarget.Character then
-            local _, hrp2, _ = GetChar()
-            local root = CurrentTarget.Character:FindFirstChild("HumanoidRootPart")
-            local dist = (hrp2 and root) and math.floor((root.Position-hrp2.Position).Magnitude) or 0
-            targetNameLbl.Text = "🎯 "..CurrentTarget.Name
-            targetDistLbl.Text = "📏 "..dist.." studs"
-            targetIdxLbl.Text  = "["..TargetIndex.."/"..#list.."]"
+            local _,hrp2,_=GetChar()
+            local root=CurrentTarget.Character:FindFirstChild("HumanoidRootPart")
+            local dist=hrp2 and root and math.floor((root.Position-hrp2.Position).Magnitude) or 0
+            targetNameLbl.Text="🎯 "..CurrentTarget.Name
+            targetDistLbl.Text="📏 "..dist.." studs"
+            targetIdxLbl.Text="["..TargetIndex.."/"..#list.."]"
         else
-            targetNameLbl.Text = "🎯 Tidak ada target"
-            targetDistLbl.Text = "📏 - studs"
-            targetIdxLbl.Text  = "[0/"..#list.."]"
+            targetNameLbl.Text="🎯 Tidak ada target"
+            targetDistLbl.Text="📏 - studs"
+            targetIdxLbl.Text="[0/"..#GetPlayerList().."]"
         end
     end
 
-    -- Rebuild player list buttons
+    Section(OP,"PLAYER LIST",C.Purple)
+    local plrListCard=New("Frame",{Size=UDim2.new(1,0,0,96),BackgroundColor3=C.BG_Card,BorderSizePixel=0},OP); Corner(plrListCard,8); Stroke(plrListCard,C.Border,1)
+    New("TextLabel",{Size=UDim2.new(1,0,0,20),Position=UDim2.new(0,10,0,4),BackgroundTransparency=1,Text="👥 Pilih Target dari List",TextColor3=C.TextMain,TextXAlignment=Enum.TextXAlignment.Left,TextSize=12,Font=Enum.Font.GothamBold},plrListCard)
+    local plrList=New("ScrollingFrame",{Size=UDim2.new(1,-20,0,48),Position=UDim2.new(0,10,0,26),BackgroundColor3=C.BG_Main,BorderSizePixel=0,ScrollBarThickness=3,ScrollBarImageColor3=C.Purple,CanvasSize=UDim2.new(0,0,0,0)},plrListCard); Corner(plrList,5)
+    local plrLL=New("UIListLayout",{FillDirection=Enum.FillDirection.Horizontal,Padding=UDim.new(0,4)},plrList); New("UIPadding",{PaddingLeft=UDim.new(0,4)},plrList)
+
     local function RebuildPlayerList()
-        -- Hapus semua tombol lama
-        for _, c in ipairs(plrList:GetChildren()) do
-            if c:IsA("TextButton") then c:Destroy() end
-        end
-        local list = GetPlayerList()
-        if #list == 0 then
-            plrList.CanvasSize = UDim2.new(0,0,0,0)
-            UpdateTargetUI()
-            return
-        end
-        for i, plr in ipairs(list) do
-            local isTarget = CurrentTarget == plr
-            local b = New("TextButton",{
-                Size=UDim2.new(0,84,0,46),
-                BackgroundColor3=isTarget and C.Purple or C.BG_Card,
-                Text=plr.Name,
-                TextColor3=isTarget and Color3.fromRGB(255,220,255) or C.TextSub,
-                TextSize=10, Font=Enum.Font.GothamBold,
-                BorderSizePixel=0,
-            }, plrList)
-            Corner(b,6)
-            if isTarget then Stroke(b,C.Purple,1.5) else Stroke(b,C.Border,1) end
-            local localI = i
-            local localPlr = plr
+        for _,c in ipairs(plrList:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
+        local list=GetPlayerList()
+        for i,plr in ipairs(list) do
+            local isSel=CurrentTarget==plr
+            local b=New("TextButton",{Size=UDim2.new(0,80,0,42),BackgroundColor3=isSel and C.Purple or C.BG_Card,Text=plr.Name,TextColor3=isSel and Color3.fromRGB(255,220,255) or C.TextMain,TextSize=9,Font=Enum.Font.GothamBold,BorderSizePixel=0},plrList)
+            Corner(b,5); Stroke(b,isSel and C.Purple or C.Border,1)
+            local li=i; local lp=plr
             b.MouseButton1Click:Connect(function()
-                -- Set target
-                SetTarget(localPlr, localI, nil)
-                -- Rebuild list biar warna update
-                RebuildPlayerList()
-                UpdateTargetUI()
+                TargetIndex=li; CurrentTarget=lp; RebuildPlayerList(); UpdateTargetUI()
             end)
         end
-        plrLL:ApplyLayout()
-        plrList.CanvasSize = UDim2.new(0, plrLL.AbsoluteContentSize.X+10, 0, 0)
+        plrLL:ApplyLayout(); plrList.CanvasSize=UDim2.new(0,plrLL.AbsoluteContentSize.X+10,0,0)
         UpdateTargetUI()
     end
+    Btn(plrListCard,"🔄 Refresh Player List",nil,RebuildPlayerList)
 
-    Btn(plrListCard,"🔄 Refresh",nil,RebuildPlayerList)
-
-    -- Switch button — ini yang FIX!
-    local switchBtn=New("TextButton",{
-        Size=UDim2.new(1,0,0,38),
-        BackgroundColor3=C.Purple,
-        Text="⚡ Switch Target",
-        TextColor3=Color3.fromRGB(255,220,255),
-        TextSize=14, Font=Enum.Font.GothamBold,
-        BorderSizePixel=0,
-    },OP)
-    Corner(switchBtn,8)
+    local switchBtn=New("TextButton",{Size=UDim2.new(1,0,0,38),BackgroundColor3=C.Purple,Text="⚡ Switch Target",TextColor3=Color3.fromRGB(255,220,255),TextSize=14,Font=Enum.Font.GothamBold,BorderSizePixel=0},OP); Corner(switchBtn,8)
     switchBtn.MouseButton1Click:Connect(function()
-        -- Pakai list terbaru
-        local list = GetPlayerList()
-        if #list == 0 then return end
-        -- Cari index current di list terbaru
-        local foundIdx = nil
-        if CurrentTarget then
-            for i, plr in ipairs(list) do
-                if plr == CurrentTarget then foundIdx = i; break end
-            end
-        end
-        -- Switch ke berikutnya
-        if foundIdx then
-            TargetIndex = foundIdx + 1
-        else
-            TargetIndex = 1
-        end
-        if TargetIndex > #list then TargetIndex = 1 end
-        CurrentTarget = list[TargetIndex]
-        -- Update UI
-        RebuildPlayerList()
-        UpdateTargetUI()
-        -- Animasi tombol
-        switchBtn.BackgroundColor3 = C.Green
-        task.wait(0.3)
-        switchBtn.BackgroundColor3 = C.Purple
+        SwitchNext(); RebuildPlayerList(); UpdateTargetUI()
+        switchBtn.BackgroundColor3=C.Green; task.wait(0.3); switchBtn.BackgroundColor3=C.Purple
     end)
 
-    -- Auto refresh saat player join/leave
     Players.PlayerAdded:Connect(function() task.wait(1); RebuildPlayerList() end)
     Players.PlayerRemoving:Connect(function() task.wait(0.5); RebuildPlayerList() end)
-
-    -- Auto update jarak realtime
-    Connections.TargetUI = RunService.Heartbeat:Connect(UpdateTargetUI)
-
-    -- Init player list
+    Connections.TargetUI=RunService.Heartbeat:Connect(UpdateTargetUI)
     RebuildPlayerList()
 
     -- ══════════════════
@@ -669,14 +651,11 @@ local function BuildMain()
         game:GetService("TeleportService"):Teleport(game.PlaceId,LocalPlayer)
     end)
     Section(SETP,"ABOUT")
-    local about=New("Frame",{Size=UDim2.new(1,0,0,80),BackgroundColor3=C.BG_Card,BorderSizePixel=0},SETP)
-    Corner(about,8); Stroke(about,C.Blood,1.5)
+    local about=New("Frame",{Size=UDim2.new(1,0,0,80),BackgroundColor3=C.BG_Card,BorderSizePixel=0},SETP); Corner(about,8); Stroke(about,C.Blood,1.5)
     New("TextLabel",{Size=UDim2.new(1,-16,1,0),Position=UDim2.new(0,8,0,0),BackgroundTransparency=1,
-        Text="💀  H4ll0 W0rld Hub V3  v3.0\nFix: Switch target semua player ✅\nKey    : Hello_world123\nDiscord: discord.gg/xCV9Tf4y5N",
+        Text="💀  H4ll0 W0rld Hub V3  v4.0\nNew: Auto Shoot + Speed Slider ✅\nKey    : Hello_world123\nDiscord: discord.gg/xCV9Tf4y5N",
         TextColor3=C.TextSub,TextXAlignment=Enum.TextXAlignment.Left,TextSize=11,TextWrapped=true,Font=Enum.Font.Gotham},about)
-
-    local stopBtn=New("TextButton",{Size=UDim2.new(1,0,0,36),BackgroundColor3=C.Blood,Text="⛔  Stop All Features",TextColor3=Color3.fromRGB(255,200,200),TextSize=12,Font=Enum.Font.GothamBold,BorderSizePixel=0},SETP)
-    Corner(stopBtn,8)
+    local stopBtn=New("TextButton",{Size=UDim2.new(1,0,0,36),BackgroundColor3=C.Blood,Text="⛔  Stop All Features",TextColor3=Color3.fromRGB(255,200,200),TextSize=12,Font=Enum.Font.GothamBold,BorderSizePixel=0},SETP); Corner(stopBtn,8)
     stopBtn.MouseButton1Click:Connect(function()
         StopAll(); ClearESP()
         for k in pairs(Toggles) do Toggles[k]=false end
@@ -701,8 +680,7 @@ EnterBtn.MouseButton1Click:Connect(function()
         Tween(KeyScreen,{BackgroundTransparency=1},0.3)
         task.wait(0.5); BuildMain()
     else
-        KStatus.Text="❌ Key salah! Join Discord untuk key."
-        KStatus.TextColor3=C.Accent
+        KStatus.Text="❌ Key salah! Join Discord untuk key."; KStatus.TextColor3=C.Accent
         Tween(KBG,{BackgroundColor3=Color3.fromRGB(40,8,8)},0.2)
         task.wait(0.3); Tween(KBG,{BackgroundColor3=C.BG_Card},0.2)
     end
